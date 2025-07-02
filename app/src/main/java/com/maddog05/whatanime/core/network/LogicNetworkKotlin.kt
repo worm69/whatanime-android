@@ -10,9 +10,11 @@ import com.maddog05.whatanime.core.entity.SearchImageResult
 import com.maddog05.whatanime.core.entity.output.OutputGetQuota
 import com.maddog05.whatanime.util.Mapper
 import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Call
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -42,7 +44,7 @@ class LogicNetworkKotlin :LogicNetwork{
         callback: Callback<Pair<String, List<SearchImageResult>>>
     ) {
         val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension) ?: ""
-        val requestBody = RequestBody.create(MediaType.parse(mimeType), file)
+        val requestBody = file.asRequestBody(mimeType.toMediaTypeOrNull())
         val filePart = MultipartBody.Part.createFormData(
             "image",
             file.name,

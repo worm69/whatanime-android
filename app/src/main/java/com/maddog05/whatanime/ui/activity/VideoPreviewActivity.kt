@@ -1,12 +1,16 @@
 package com.maddog05.whatanime.ui.activity
 
 import android.content.Intent
-import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
+import androidx.core.view.isGone
 import androidx.media3.common.Player
 import com.devbrackets.android.exomedia.listener.OnCompletionListener
 import com.devbrackets.android.exomedia.listener.OnPreparedListener
@@ -49,14 +53,19 @@ class VideoPreviewActivity : AppCompatActivity(R.layout.activity_video_preview),
 
     override fun onResume() {
         super.onResume()
-        if (binding.pbarLoadingVideoPreview.visibility == View.GONE && !binding.videoViewPreview.isPlaying) binding.videoViewPreview.start()
+        if (binding.pbarLoadingVideoPreview.isGone && !binding.videoViewPreview.isPlaying) binding.videoViewPreview.start()
     }
 
     private fun setupExtraData() {
         val bundle = intent.extras
         if (bundle != null) {
             videoUrl = bundle.getString(C.Extras.VIDEO_URL, C.EMPTY)
-            doc = bundle.getParcelable(C.Extras.DOC)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                doc = bundle.getParcelable(C.Extras.DOC, SearchImageResult::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                doc = bundle.getParcelable(C.Extras.DOC)
+            }
         }
     }
 
@@ -64,7 +73,7 @@ class VideoPreviewActivity : AppCompatActivity(R.layout.activity_video_preview),
         val title = doc?.filename ?: ""
         setupTitle(title)
         if (Checkers.isInternetInWifiOrData(this@VideoPreviewActivity)) {
-            binding.videoViewPreview.setMedia(Uri.parse(videoUrl))
+            binding.videoViewPreview.setMedia(videoUrl.toUri())
             binding.videoViewPreview.setRepeatMode(Player.REPEAT_MODE_ALL)
 //            binding.videoViewPreview.setVideoURI(Uri.parse(videoUrl))
         } else {
@@ -83,9 +92,22 @@ class VideoPreviewActivity : AppCompatActivity(R.layout.activity_video_preview),
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun actionExpand() {
-        window.decorView.let {
-            val isNotFullScreen = it.systemUiVisibility == View.SYSTEM_UI_FLAG_VISIBLE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            val controller = window.insetsController
+            val insets = window.decorView.rootWindowInsets
+            val isNotFullScreen =
+                insets?.isVisible(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()) == true
+
+            if (isNotFullScreen) {
+                goFullscreen()
+            } else {
+                exitFullscreen()
+            }
+        } else {
+            // Soporte para API < 30
+            val isNotFullScreen = window.decorView.systemUiVisibility == View.SYSTEM_UI_FLAG_VISIBLE
             if (isNotFullScreen) {
                 goFullscreen()
             } else {
@@ -124,20 +146,27 @@ class VideoPreviewActivity : AppCompatActivity(R.layout.activity_video_preview),
     }
 
     private fun setUiFlags(fullscreen: Boolean) {
-        window.decorView.let {
-            it.systemUiVisibility =
-                if (fullscreen) getFullscreenUiFlags() else View.SYSTEM_UI_FLAG_VISIBLE
+        if (fullscreen) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.hide(WindowInsets.Type.systemBars())
+                window.insetsController?.systemBarsBehavior =
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        )
+            }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.show(WindowInsets.Type.systemBars())
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
         }
-    }
-
-    private fun getFullscreenUiFlags(): Int {
-        var flags = View.SYSTEM_UI_FLAG_LOW_PROFILE or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-        flags = flags or (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
-        return flags
     }
 
     override fun onPrepared() {
